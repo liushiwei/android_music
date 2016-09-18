@@ -473,6 +473,10 @@ public class MediaPlaybackService extends Service {
 
         //Log.i("@@@@ service", "saved state in " + (System.currentTimeMillis() - start) + " ms");
     }
+    /**
+    *   重新加载播放列表
+    *
+    */
 
     private void reloadQueue() {
         String q = null;
@@ -488,6 +492,9 @@ public class MediaPlaybackService extends Service {
             // the same one as when the playlist was saved
             q = mPreferences.getString("queue", "");
         }
+        
+        //从mPreferences里取出queue并解析
+
         int qlen = q != null ? q.length() : 0;
         if (qlen > 1) {
             //Log.i("@@@@ service", "loaded queue: " + q);
@@ -523,6 +530,8 @@ public class MediaPlaybackService extends Service {
                 mPlayListLen = 0;
                 return;
             }
+            //取出当前播放到的曲目
+
             mPlayPos = pos;
             
             // When reloadQueue is called in response to a card-insertion,
@@ -535,6 +544,7 @@ public class MediaPlaybackService extends Service {
                         new String [] {"_id"}, "_id=" + mPlayList[mPlayPos] , null, null);
             if (crsr == null || crsr.getCount() == 0) {
                 // wait a bit and try again
+                //查询曲目是否存在，不存在等３秒再查
                 SystemClock.sleep(3000);
                 crsr = getContentResolver().query(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
