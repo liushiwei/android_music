@@ -573,19 +573,19 @@ public class MediaPlaybackService extends Service {
                 mPlayListLen = 0;
                 return;
             }
-            
+            //获取上次播放位置
             long seekpos = mPreferences.getLong("seekpos", 0);
             seek(seekpos >= 0 && seekpos < duration() ? seekpos : 0);
             Log.d(LOGTAG, "restored queue, currently at position "
                     + position() + "/" + duration()
                     + " (requested " + seekpos + ")");
-            
+          //获取重复模式
             int repmode = mPreferences.getInt("repeatmode", REPEAT_NONE);
             if (repmode != REPEAT_ALL && repmode != REPEAT_CURRENT) {
                 repmode = REPEAT_NONE;
             }
             mRepeatMode = repmode;
-
+          //获取随机模式
             int shufmode = mPreferences.getInt("shufflemode", SHUFFLE_NONE);
             if (shufmode != SHUFFLE_AUTO && shufmode != SHUFFLE_NORMAL) {
                 shufmode = SHUFFLE_NONE;
@@ -835,6 +835,11 @@ public class MediaPlaybackService extends Service {
         // Share this notification directly with our widgets
         mAppWidgetProvider.notifyChange(this, what);
     }
+    
+    /**
+     * 确保当前的PlayList的Size够大，不够就重新创建一个，再把原来的List拷贝过去。
+     * @param size
+     */
 
     private void ensurePlayListCapacity(int size) {
         if (mPlayList == null || size > mPlayList.length) {
@@ -1028,6 +1033,10 @@ public class MediaPlaybackService extends Service {
         }
         return c;
     }
+    
+    /**
+     * 
+     */
 
     private void openCurrentAndNext() {
         synchronized (this) {
@@ -1890,7 +1899,9 @@ public class MediaPlaybackService extends Service {
                 setNextDataSource(null);
             }
         }
-
+        /**
+         * 设置播放文件路径 --lsw
+         */
         private boolean setDataSourceImpl(MediaPlayer player, String path) {
             try {
                 player.reset();
