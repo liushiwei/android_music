@@ -893,6 +893,7 @@ public class MediaPlaybackService extends Service {
      * the first track.
      * If the action is NOW, playback will switch to the first of
      * the new tracks immediately.
+     * 在现有播放列表里插入新的播放列表
      * @param list The list of tracks to append.
      * @param action NOW, NEXT or LAST
      */

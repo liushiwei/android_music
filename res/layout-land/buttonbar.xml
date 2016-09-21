@@ -74,11 +74,11 @@
         android:layout_height="64dip" />
 
     <TextView
-        android:id="@+id/playlisttab"
+        android:id="@+id/foldertab"
         android:focusable="true"
         android:background="@drawable/buttonbarbackground"
-        android:drawableTop="@drawable/ic_tab_playlists"
-        android:text="@string/playlists_menu"
+        android:drawableTop="@drawable/ic_tab_albums"
+        android:text="@string/folder"
         android:textAppearance="?android:attr/textAppearanceSmall"
         android:textColor="@color/tab_indicator_text"
         android:paddingTop="7dip"

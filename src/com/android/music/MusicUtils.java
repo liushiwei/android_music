@@ -1217,6 +1217,9 @@ public class MusicUtils {
             case R.id.playlisttab:
                 intent.setDataAndType(Uri.EMPTY, MediaStore.Audio.Playlists.CONTENT_TYPE);
                 break;
+            case R.id.foldertab:
+            	intent.setDataAndType(Uri.EMPTY, "vnd.android.cursor.dir/folder");
+            	break;
             case R.id.nowplayingtab:
                 intent = new Intent(a, MediaPlaybackActivity.class);
                 a.startActivity(intent);
