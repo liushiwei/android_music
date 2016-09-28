@@ -809,39 +809,41 @@ public class MediaPlaybackService extends Service {
      * or that the play-state changed (paused/resumed).
      */
     private void notifyChange(String what) {
-
-        Intent i = new Intent(what);
-        i.putExtra("id", Long.valueOf(getAudioId()));
-        i.putExtra("artist", getArtistName());
-        i.putExtra("album",getAlbumName());
-        i.putExtra("track", getTrackName());
-        i.putExtra("playing", isPlaying());
-        sendStickyBroadcast(i);
-
-        if (what.equals(PLAYSTATE_CHANGED)) {
-            mRemoteControlClient.setPlaybackState(isPlaying() ?
-                    RemoteControlClient.PLAYSTATE_PLAYING : RemoteControlClient.PLAYSTATE_PAUSED);
-        } else if (what.equals(META_CHANGED)) {
-            RemoteControlClient.MetadataEditor ed = mRemoteControlClient.editMetadata(true);
-            ed.putString(MediaMetadataRetriever.METADATA_KEY_TITLE, getTrackName());
-            ed.putString(MediaMetadataRetriever.METADATA_KEY_ALBUM, getAlbumName());
-            ed.putString(MediaMetadataRetriever.METADATA_KEY_ARTIST, getArtistName());
-            ed.putLong(MediaMetadataRetriever.METADATA_KEY_DURATION, duration());
-            Bitmap b = MusicUtils.getArtwork(this, getAudioId(), getAlbumId(), false);
-            if (b != null) {
-                ed.putBitmap(MetadataEditor.BITMAP_KEY_ARTWORK, b);
-            }
-            ed.apply();
-        }
-
-        if (what.equals(QUEUE_CHANGED)) {
-            saveQueue(true);
-        } else {
-            saveQueue(false);
-        }
-        
-        // Share this notification directly with our widgets
-        mAppWidgetProvider.notifyChange(this, what);
+    	//TODO add folder mode
+    	if(!isFolderMode){
+    		Intent i = new Intent(what);
+    		i.putExtra("id", Long.valueOf(getAudioId()));
+    		i.putExtra("artist", getArtistName());
+    		i.putExtra("album",getAlbumName());
+    		i.putExtra("track", getTrackName());
+    		i.putExtra("playing", isPlaying()); 
+    		sendStickyBroadcast(i);
+    		
+    		if (what.equals(PLAYSTATE_CHANGED)) {
+    			mRemoteControlClient.setPlaybackState(isPlaying() ?
+    					RemoteControlClient.PLAYSTATE_PLAYING : RemoteControlClient.PLAYSTATE_PAUSED);
+    		} else if (what.equals(META_CHANGED)) {
+    			RemoteControlClient.MetadataEditor ed = mRemoteControlClient.editMetadata(true);
+    			ed.putString(MediaMetadataRetriever.METADATA_KEY_TITLE, getTrackName());
+    			ed.putString(MediaMetadataRetriever.METADATA_KEY_ALBUM, getAlbumName());
+    			ed.putString(MediaMetadataRetriever.METADATA_KEY_ARTIST, getArtistName());
+    			ed.putLong(MediaMetadataRetriever.METADATA_KEY_DURATION, duration());
+    			Bitmap b = MusicUtils.getArtwork(this, getAudioId(), getAlbumId(), false);
+    			if (b != null) {
+    				ed.putBitmap(MetadataEditor.BITMAP_KEY_ARTWORK, b);
+    			}
+    			ed.apply();
+    		}
+    		
+    		if (what.equals(QUEUE_CHANGED)) {
+    			saveQueue(true);
+    		} else {
+    			saveQueue(false);
+    		}
+    		
+    		// Share this notification directly with our widgets
+    		mAppWidgetProvider.notifyChange(this, what);
+    	}
     }
     
     /**
@@ -1352,7 +1354,7 @@ public class MediaPlaybackService extends Service {
             // of another focus loss
             mMediaplayerHandler.removeMessages(FADEDOWN);
             mMediaplayerHandler.sendEmptyMessage(FADEUP);
-
+            //TODO add folder mode
             updateNotification();
             if (!mIsSupposedToBePlaying) {
                 mIsSupposedToBePlaying = true;
@@ -1678,7 +1680,7 @@ public class MediaPlaybackService extends Service {
                 return;
             }
 
-            int pos = getNextPosition(force);
+            int pos =isFolderMode?getFolderNextPosition(force): getNextPosition(force);
             if (pos < 0) {
                 gotoIdleState();
                 if (mIsSupposedToBePlaying) {
@@ -1691,7 +1693,11 @@ public class MediaPlaybackService extends Service {
             saveBookmarkIfNeeded();
             stop(false);
             mPlayPos = pos;
-            openCurrentAndNext();
+            if(isFolderMode){
+            	openFolderCurrentAndNext();
+            }else{
+            	openCurrentAndNext();
+            }
             play();
             notifyChange(META_CHANGED);
         }
@@ -1866,16 +1872,23 @@ public class MediaPlaybackService extends Service {
                 mPlayPos -= (last - first + 1);
             }
             int num = mPlayListLen - last - 1;
-            for (int i = 0; i < num; i++) {
-                mPlayList[first + i] = mPlayList[last + 1 + i];
+            if(isFolderMode){
+            	 for (int i = 0; i < num; i++) {
+                     mFolderPlayList[first + i] = mFolderPlayList[last + 1 + i];
+                 }
+            }else{
+            	 for (int i = 0; i < num; i++) {
+                     mPlayList[first + i] = mPlayList[last + 1 + i];
+                 }
             }
+           
             mPlayListLen -= last - first + 1;
             
             if (gotonext) {
                 if (mPlayListLen == 0) {
                     stop(true);
                     mPlayPos = -1;
-                    if (mCursor != null) {
+                    if (mCursor != null&&!isFolderMode) {
                         mCursor.close();
                         mCursor = null;
                     }
@@ -1885,7 +1898,11 @@ public class MediaPlaybackService extends Service {
                     }
                     boolean wasPlaying = isPlaying();
                     stop(false);
-                    openCurrentAndNext();
+                    if(isFolderMode){
+                    	openFolderCurrentAndNext();
+                    }else{
+                    	openCurrentAndNext();
+                    }
                     if (wasPlaying) {
                         play();
                     }
