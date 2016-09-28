@@ -23,6 +23,7 @@ interface IMediaPlaybackService
 {
     void openFile(String path);
     void open(in long [] list, int position);
+    void openFolder(in String [] list, int position);
     int getQueuePosition();
     boolean isPlaying();
     void stop();

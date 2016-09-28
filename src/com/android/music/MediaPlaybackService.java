@@ -48,11 +48,13 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.os.PowerManager.WakeLock;
+import android.os.RemoteException;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.widget.RemoteViews;
 import android.widget.Toast;
 
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -113,6 +115,12 @@ public class MediaPlaybackService extends Service {
     private String mFileToPlay;
     private int mShuffleMode = SHUFFLE_NONE;
     private int mRepeatMode = REPEAT_NONE;
+    
+    private boolean isFolderMode = false;
+    private String [] mFolderPlayList = null;
+    private String mCurrentFile;
+    private Vector<Integer> mFolderHistory = new Vector<Integer>(MAX_HISTORY_SIZE);
+    
     private int mMediaMountedCount = 0;
     private long [] mAutoShuffleList = null;
     private long [] mPlayList = null;
@@ -857,6 +865,27 @@ public class MediaPlaybackService extends Service {
         // than the allocated size
     }
     
+    /**
+     * 确保当前的PlayList的Size够大，不够就重新创建一个，再把原来的List拷贝过去。
+     * @param size
+     */
+
+    private void ensureFolderPlayListCapacity(int size) {
+        if (mFolderPlayList == null || size > mFolderPlayList.length) {
+            // reallocate at 2x requested size so we don't
+            // need to grow and copy the array for every
+            // insert
+            String [] newlist = new String[size * 2];
+            int len = mPlayList != null ? mPlayList.length : mPlayListLen;
+            for (int i = 0; i < len; i++) {
+                newlist[i] = mFolderPlayList[i];
+            }
+            mFolderPlayList = newlist;
+        }
+        // FIXME: shrink the array when the needed size is much smaller
+        // than the allocated size
+    }
+    
     // insert the list of songs at the specified position in the playlist
     private void addToPlayList(long [] list, int position) {
         int addlen = list.length;
@@ -883,6 +912,33 @@ public class MediaPlaybackService extends Service {
         if (mPlayListLen == 0) {
             mCursor.close();
             mCursor = null;
+            notifyChange(META_CHANGED);
+        }
+    }
+    
+    private void addToFolderPlayList(String [] list, int position) {
+        int addlen = list.length;
+        if (position < 0) { // overwrite
+            mPlayListLen = 0;
+            position = 0;
+        }
+        ensureFolderPlayListCapacity(mPlayListLen + addlen);
+        if (position > mPlayListLen) {
+            position = mPlayListLen;
+        }
+        
+        // move part of list after insertion point
+        int tailsize = mPlayListLen - position;
+        for (int i = tailsize ; i > 0 ; i--) {
+            mFolderPlayList[position + i] = mFolderPlayList[position + i - addlen]; 
+        }
+        
+        // copy list into playlist
+        for (int i = 0; i < addlen; i++) {
+        	mFolderPlayList[position + i] = list[i];
+        }
+        mPlayListLen += addlen;
+        if (mPlayListLen == 0) {
             notifyChange(META_CHANGED);
         }
     }
@@ -938,6 +994,7 @@ public class MediaPlaybackService extends Service {
             long oldId = getAudioId();
             int listlength = list.length;
             boolean newlist = true;
+            //判断是不是原来的PlayList
             if (mPlayListLen == listlength) {
                 // possible fast path: list might be the same
                 newlist = false;
@@ -966,6 +1023,49 @@ public class MediaPlaybackService extends Service {
                 notifyChange(META_CHANGED);
             }
         }
+    }
+    
+    public void openFolder(String[] list ,int position){
+    	synchronized (this) {
+			
+            if (mShuffleMode == SHUFFLE_AUTO) {
+                mShuffleMode = SHUFFLE_NORMAL;
+            }
+            long oldId = getAudioId();
+            int listlength = list.length;
+            boolean newlist = true;
+            //判断是不是原来的PlayList
+            if (mPlayListLen == listlength&&isFolderMode) {
+                // possible fast path: list might be the same
+                newlist = false;
+                for (int i = 0; i < listlength; i++) {
+                    if (!list[i].equals(mFolderPlayList[i])) {
+                        newlist = true;
+                        break;
+                    }
+                }
+            }
+            if (newlist) {
+            	addToFolderPlayList(list, -1);
+            	//TODO add folder mode
+                notifyChange(QUEUE_CHANGED);
+            }
+            int oldpos = mPlayPos;
+            if (position >= 0) {
+                mPlayPos = position;
+            } else {
+                mPlayPos = 0;
+            }
+            mFolderHistory.clear();
+
+            //saveBookmarkIfNeeded();
+            openFolderCurrentAndNext();
+            if (oldId != getAudioId()) {
+                notifyChange(META_CHANGED);
+            }
+            isFolderMode = true;
+		
+	}
     }
     
     /**
@@ -1103,12 +1203,72 @@ public class MediaPlaybackService extends Service {
             setNextTrack();
         }
     }
+    
+    private void openFolderCurrentAndNext() {
+        synchronized (this) {
+            if (mPlayListLen == 0) {
+                return;
+            }
+            stop(false);
+
+            mCurrentFile = mFolderPlayList[mPlayPos];
+            while(true) {
+                if (mCurrentFile != null && new File(mCurrentFile).exists() &&
+                        open(mCurrentFile)) {
+                    break;
+                }
+                // if we get here then opening the file failed. We can close the cursor now, because
+                // we're either going to create a new one next, or stop trying
+                
+                if (mOpenFailedCounter++ < 10 &&  mPlayListLen > 1) {
+                    int pos = getFolderNextPosition(false);
+                    if (pos < 0) {
+                        gotoIdleState();
+                        if (mIsSupposedToBePlaying) {
+                            mIsSupposedToBePlaying = false;
+                            //TODO add folder mode;
+                            notifyChange(PLAYSTATE_CHANGED);
+                        }
+                        return;
+                    }
+                    mPlayPos = pos;
+                    stop(false);
+                    mPlayPos = pos;
+                    mCurrentFile = mFolderPlayList[mPlayPos];
+                } else {
+                    mOpenFailedCounter = 0;
+                    if (!mQuietMode) {
+                        Toast.makeText(this, R.string.playback_failed, Toast.LENGTH_SHORT).show();
+                    }
+                    Log.d(LOGTAG, "Failed to open file for playback");
+                    gotoIdleState();
+                    if (mIsSupposedToBePlaying) {
+                        mIsSupposedToBePlaying = false;
+                        notifyChange(PLAYSTATE_CHANGED);
+                    }
+                    return;
+                }
+            }
+
+            setFolderNextTrack();
+        }
+    }
 
     private void setNextTrack() {
         mNextPlayPos = getNextPosition(false);
         if (mNextPlayPos >= 0) {
             long id = mPlayList[mNextPlayPos];
             mPlayer.setNextDataSource(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI + "/" + id);
+        } else {
+            mPlayer.setNextDataSource(null);
+        }
+    }
+    
+    private void setFolderNextTrack() {
+        mNextPlayPos = getFolderNextPosition(false);
+        if (mNextPlayPos >= 0) {
+            String id = mFolderPlayList[mNextPlayPos];
+            mPlayer.setNextDataSource(id);
         } else {
             mPlayer.setNextDataSource(null);
         }
@@ -1424,6 +1584,92 @@ public class MediaPlaybackService extends Service {
             }
         }
     }
+    
+    /**
+     * Get the next position to play. Note that this may actually modify mPlayPos
+     * if playback is in SHUFFLE_AUTO mode and the shuffle list window needed to
+     * be adjusted. Either way, the return value is the next value that should be
+     * assigned to mPlayPos;
+     */
+    private int getFolderNextPosition(boolean force) {
+        if (mRepeatMode == REPEAT_CURRENT) {
+            if (mPlayPos < 0) return 0;
+            return mPlayPos;
+        } else if (mShuffleMode == SHUFFLE_NORMAL) {
+            // Pick random next track from the not-yet-played ones
+            // TODO: make it work right after adding/removing items in the queue.
+
+            // Store the current file in the history, but keep the history at a
+            // reasonable size
+            if (mPlayPos >= 0) {
+            	mFolderHistory.add(mPlayPos);
+            }
+            if (mFolderHistory.size() > MAX_HISTORY_SIZE) {
+            	mFolderHistory.removeElementAt(0);
+            }
+
+            int numTracks = mPlayListLen;
+            int[] tracks = new int[numTracks];
+            for (int i=0;i < numTracks; i++) {
+                tracks[i] = i;
+            }
+
+            int numHistory = mFolderHistory.size();
+            int numUnplayed = numTracks;
+            for (int i=0;i < numHistory; i++) {
+                int idx = mFolderHistory.get(i).intValue();
+                if (idx < numTracks && tracks[idx] >= 0) {
+                    numUnplayed--;
+                    tracks[idx] = -1;
+                }
+            }
+
+            // 'numUnplayed' now indicates how many tracks have not yet
+            // been played, and 'tracks' contains the indices of those
+            // tracks.
+            if (numUnplayed <=0) {
+                // everything's already been played
+                if (mRepeatMode == REPEAT_ALL || force) {
+                    //pick from full set
+                    numUnplayed = numTracks;
+                    for (int i=0;i < numTracks; i++) {
+                        tracks[i] = i;
+                    }
+                } else {
+                    // all done
+                    return -1;
+                }
+            }
+            int skip = mRand.nextInt(numUnplayed);
+            int cnt = -1;
+            while (true) {
+                while (tracks[++cnt] < 0)
+                    ;
+                skip--;
+                if (skip < 0) {
+                    break;
+                }
+            }
+            return cnt;
+        } else if (mShuffleMode == SHUFFLE_AUTO) {
+        	//TODO add folder mode;
+            doAutoShuffleUpdate();
+            return mPlayPos + 1;
+        } else {
+            if (mPlayPos >= mPlayListLen - 1) {
+                // we're at the end of the list
+                if (mRepeatMode == REPEAT_NONE && !force) {
+                    // all done
+                    return -1;
+                } else if (mRepeatMode == REPEAT_ALL || force) {
+                    return 0;
+                }
+                return -1;
+            } else {
+                return mPlayPos + 1;
+            }
+        }
+    }
 
     public void gotoNext(boolean force) {
         synchronized (this) {
@@ -1702,7 +1948,10 @@ public class MediaPlaybackService extends Service {
     public void setRepeatMode(int repeatmode) {
         synchronized(this) {
             mRepeatMode = repeatmode;
-            setNextTrack();
+            if(isFolderMode)
+            	setFolderNextTrack();
+            else
+            	setNextTrack();
             saveQueue(false);
         }
     }
@@ -2202,6 +2451,13 @@ public class MediaPlaybackService extends Service {
         public int getAudioSessionId() {
             return mService.get().getAudioSessionId();
         }
+
+		@Override
+		public void openFolder(String[] list, int position) throws RemoteException {
+			mService.get().openFolder(list, position);
+		}
+			
+			
     }
 
     @Override
