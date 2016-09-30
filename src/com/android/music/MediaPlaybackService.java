@@ -117,6 +117,7 @@ public class MediaPlaybackService extends Service {
     private int mRepeatMode = REPEAT_NONE;
     
     private boolean isFolderMode = false;
+    private String [] mFolderAutoShuffleList = null;
     private String [] mFolderPlayList = null;
     private String mCurrentFile;
     private Vector<Integer> mFolderHistory = new Vector<Integer>(MAX_HISTORY_SIZE);
@@ -1750,25 +1751,49 @@ public class MediaPlaybackService extends Service {
         }
         // add new entries if needed
         int to_add = 7 - (mPlayListLen - (mPlayPos < 0 ? -1 : mPlayPos));
-        for (int i = 0; i < to_add; i++) {
-            // pick something at random from the list
-
-            int lookback = mHistory.size();
-            int idx = -1;
-            while(true) {
-                idx = mRand.nextInt(mAutoShuffleList.length);
-                if (!wasRecentlyUsed(idx, lookback)) {
-                    break;
-                }
-                lookback /= 2;
-            }
-            mHistory.add(idx);
-            if (mHistory.size() > MAX_HISTORY_SIZE) {
-                mHistory.remove(0);
-            }
-            ensurePlayListCapacity(mPlayListLen + 1);
-            mPlayList[mPlayListLen++] = mAutoShuffleList[idx];
-            notify = true;
+        if(!isFolderMode){
+        	
+        	for (int i = 0; i < to_add; i++) {
+        		// pick something at random from the list
+        		
+        		int lookback = mHistory.size();
+        		int idx = -1;
+        		while(true) {
+        			idx = mRand.nextInt(mAutoShuffleList.length);
+        			if (!wasRecentlyUsed(idx, lookback)) {
+        				break;
+        			}
+        			lookback /= 2;
+        		}
+        		mHistory.add(idx);
+        		if (mHistory.size() > MAX_HISTORY_SIZE) {
+        			mHistory.remove(0);
+        		}
+        		ensurePlayListCapacity(mPlayListLen + 1);
+        		mPlayList[mPlayListLen++] = mAutoShuffleList[idx];
+        		notify = true;
+        	}
+        }else{
+        	for (int i = 0; i < to_add; i++) {
+        		// pick something at random from the list
+        		
+        		int lookback = mFolderHistory.size();
+        		int idx = -1;
+        		while(true) {
+        			idx = mRand.nextInt(mFolderAutoShuffleList.length);
+        			if (!wasRecentlyUsed(idx, lookback)) {
+        				break;
+        			}
+        			lookback /= 2;
+        		}
+        		mFolderHistory.add(idx);
+        		if (mFolderHistory.size() > MAX_HISTORY_SIZE) {
+        			mFolderHistory.remove(0);
+        		}
+        		ensurePlayListCapacity(mPlayListLen + 1);
+        		mFolderPlayList[mPlayListLen++] = mFolderAutoShuffleList[idx];
+        		notify = true;
+        	}
         }
         if (notify) {
             notifyChange(QUEUE_CHANGED);
