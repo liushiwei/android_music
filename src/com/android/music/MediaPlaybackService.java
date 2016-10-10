@@ -1289,7 +1289,7 @@ public class MediaPlaybackService extends Service {
             }
             
             // if mCursor is null, try to associate path with a database cursor
-            if (mCursor == null) {
+            if (mCursor == null&&!isFolderMode) {
 
                 ContentResolver resolver = getContentResolver();
                 Uri uri;

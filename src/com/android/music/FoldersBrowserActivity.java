@@ -88,12 +88,12 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
-        if (icicle != null) {
-            mCurrentAlbumId = icicle.getString("selectedalbum");
-            mCurrentAlbumName = icicle.getString("selectedalbumname");
-            mCurrentArtistId = icicle.getString("selectedartist");
-            mCurrentArtistName = icicle.getString("selectedartistname");
-        }
+//        if (icicle != null) {
+//            mCurrentAlbumId = icicle.getString("selectedalbum");
+//            mCurrentAlbumName = icicle.getString("selectedalbumname");
+//            mCurrentArtistId = icicle.getString("selectedartist");
+//            mCurrentArtistName = icicle.getString("selectedartistname");
+//        }
         mToken = MusicUtils.bindToService(this, this);
 
         IntentFilter f = new IntentFilter();
