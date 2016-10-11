@@ -16,6 +16,7 @@
 
 package com.android.music;
 
+import com.android.music.FoldersBrowserActivity.FolderListAdapter.ViewHolder;
 import com.android.music.MusicUtils.ServiceToken;
 import com.android.music.QueryBrowserActivity.QueryListAdapter.QueryHandler;
 
@@ -264,20 +265,8 @@ public class FoldersBrowserActivity extends ExpandableListActivity
     @Override
     public boolean onChildClick(ExpandableListView parent, View v, int groupPosition, int childPosition, long id) {
 
-        mCurrentAlbumId = Long.valueOf(id).toString();
-        
-        Intent intent = new Intent(Intent.ACTION_PICK);
-        intent.setDataAndType(Uri.EMPTY, "vnd.android.cursor.dir/track");
-        intent.putExtra("album", mCurrentAlbumId);
-        Cursor c = (Cursor) getExpandableListAdapter().getChild(groupPosition, childPosition);
-        String album = c.getString(c.getColumnIndex(MediaStore.Audio.Albums.ALBUM));
-        if (album == null || album.equals(MediaStore.UNKNOWN_STRING)) {
-            // unknown album, so we should include the artist ID to limit the songs to songs only by that artist 
-            mArtistCursor.moveToPosition(groupPosition);
-            mCurrentArtistId = mArtistCursor.getString(mArtistCursor.getColumnIndex(MediaStore.Audio.Artists._ID));
-            intent.putExtra("artist", mCurrentArtistId);
-        }
-        startActivity(intent);
+    	ViewHolder vh = (ViewHolder) v.getTag();
+        MusicUtils.playFolder(this, vh.folder_id, childPosition);
         return true;
     }
     
@@ -568,6 +557,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
             TextView line2;
             ImageView play_indicator;
             ImageView icon;
+            long folder_id;
         }
 
         class QueryHandler extends AsyncQueryHandler {
@@ -701,7 +691,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
                 displayname = mUnknownAlbum;
             }
             vh.line1.setText(displayname);
-
+            vh.folder_id = cursor.getLong(cursor.getColumnIndex(Files.FOLDER_ID));
 //            int numsongs = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS));
 //            int numartistsongs = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS_FOR_ARTIST));
 //

@@ -779,6 +779,10 @@ public class MusicUtils {
         playAll(context, cursor, position, false);
     }
     
+    public static void playFolder(Context context, long folder_id, int position) {
+    	playFolder(context, folder_id, position, false);
+    }
+    
     public static void playAll(Context context, long [] list, int position) {
         playAll(context, list, position, false);
     }
@@ -818,6 +822,48 @@ public class MusicUtils {
                 position = 0;
             }
             sService.open(list, force_shuffle ? -1 : position);
+            sService.play();
+        } catch (RemoteException ex) {
+        } finally {
+            Intent intent = new Intent("com.android.music.PLAYBACK_VIEWER")
+                .setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            context.startActivity(intent);
+        }
+    }
+    
+    private static void playFolder(Context context, long folder_id, int position, boolean force_shuffle) {
+        if (folder_id < 0 || sService == null) {
+            Log.d("MusicUtils", "attempt to play empty song list");
+            // Don't try to play empty playlists. Nothing good will come of it.
+            String message = context.getString(R.string.emptyplaylist, 0);
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            if (force_shuffle) {
+                sService.setShuffleMode(MediaPlaybackService.SHUFFLE_NORMAL);
+            }
+            
+            
+            Cursor c = MusicUtils.query(context,
+            		Files.CONTENT_URI,
+                    null, "folder_id = ? and file_type = ?", new String[]{folder_id+"",Files.FILE_TYPE_AUDIO+""}, null);
+            int count = c.getCount();
+            if(count ==0){
+            	 String message = context.getString(R.string.emptyplaylist, 0);
+                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+                 return;
+            }
+            if (position < 0 || position>= count) {
+                position = 0;
+            }
+            String list[] = new String[count];
+            for(int i=0;i<count;i++){
+            	c.moveToNext();
+            	list[i]  = c.getString(c.getColumnIndex(Files.PATH));
+            }
+            
+            sService.openFolder(list, force_shuffle ? -1 : position);
             sService.play();
         } catch (RemoteException ex) {
         } finally {

@@ -879,7 +879,7 @@ public class MediaPlaybackService extends Service {
             // need to grow and copy the array for every
             // insert
             String [] newlist = new String[size * 2];
-            int len = mPlayList != null ? mPlayList.length : mPlayListLen;
+            int len = mFolderPlayList != null ? mFolderPlayList.length : mPlayListLen;
             for (int i = 0; i < len; i++) {
                 newlist[i] = mFolderPlayList[i];
             }
