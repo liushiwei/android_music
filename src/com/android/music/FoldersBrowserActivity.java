@@ -25,6 +25,7 @@ import android.content.AsyncQueryHandler;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -74,7 +75,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
     private String mCurrentArtistNameForAlbum;
     boolean mIsUnknownArtist;
     boolean mIsUnknownAlbum;
-    private ArtistAlbumListAdapter mAdapter;
+    private FolderListAdapter mAdapter;
     private boolean mAdapterSent;
     private final static int SEARCH = CHILD_MENU_BASE;
     private static int mLastListPosCourse = -1;
@@ -88,12 +89,12 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
-//        if (icicle != null) {
-//            mCurrentAlbumId = icicle.getString("selectedalbum");
-//            mCurrentAlbumName = icicle.getString("selectedalbumname");
-//            mCurrentArtistId = icicle.getString("selectedartist");
-//            mCurrentArtistName = icicle.getString("selectedartistname");
-//        }
+        if (icicle != null) {
+            mCurrentAlbumId = icicle.getString("selectedalbum");
+            mCurrentAlbumName = icicle.getString("selectedalbumname");
+            mCurrentArtistId = icicle.getString("selectedartist");
+            mCurrentArtistName = icicle.getString("selectedartistname");
+        }
         mToken = MusicUtils.bindToService(this, this);
 
         IntentFilter f = new IntentFilter();
@@ -109,10 +110,10 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         lv.setOnCreateContextMenuListener(this);
         lv.setTextFilterEnabled(true);
 
-        mAdapter = (ArtistAlbumListAdapter) getLastNonConfigurationInstance();
+        mAdapter = (FolderListAdapter) getLastNonConfigurationInstance();
         if (mAdapter == null) {
             //Log.i("@@@", "starting query");
-            mAdapter = new ArtistAlbumListAdapter(
+            mAdapter = new FolderListAdapter(
                     getApplication(),
                     this,
                     null, // cursor
@@ -124,7 +125,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
                     new int[] {});
             setListAdapter(mAdapter);
             setTitle(R.string.working_artists);
-            getArtistCursor(mAdapter.getQueryHandler(), null);
+            getFolderCursor(mAdapter.getQueryHandler(), null);
         } else {
             mAdapter.setActivity(this);
             setListAdapter(mAdapter);
@@ -132,7 +133,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
             if (mArtistCursor != null) {
                 init(mArtistCursor);
             } else {
-                getArtistCursor(mAdapter.getQueryHandler(), null);
+                getFolderCursor(mAdapter.getQueryHandler(), null);
             }
         }
     }
@@ -218,7 +219,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         @Override
         public void handleMessage(Message msg) {
             if (mAdapter != null) {
-                getArtistCursor(mAdapter.getQueryHandler(), null);
+                getFolderCursor(mAdapter.getQueryHandler(), null);
             }
         }
     };
@@ -499,7 +500,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
                 if (resultCode == RESULT_CANCELED) {
                     finish();
                 } else {
-                    getArtistCursor(mAdapter.getQueryHandler(), null);
+                    getFolderCursor(mAdapter.getQueryHandler(), null);
                 }
                 break;
 
@@ -520,16 +521,11 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         }
     }
 
-    private Cursor getArtistCursor(AsyncQueryHandler async, String filter) {
+    private Cursor getFolderCursor(AsyncQueryHandler async, String filter) {
 
-        String[] cols = new String[] {
-                MediaStore.Audio.Artists._ID,
-                MediaStore.Audio.Artists.ARTIST,
-                MediaStore.Audio.Artists.NUMBER_OF_ALBUMS,
-                MediaStore.Audio.Artists.NUMBER_OF_TRACKS
-        };
+     
 
-        Uri uri = MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI;
+        Uri uri = ContentUris.withAppendedId(Files.CONTENT_FILE_TYPE_URI, Files.FILE_TYPE_AUDIO);
         if (!TextUtils.isEmpty(filter)) {
             uri = uri.buildUpon().appendQueryParameter("filter", Uri.encode(filter)).build();
         }
@@ -537,22 +533,22 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         Cursor ret = null;
         if (async != null) {
             async.startQuery(0, null, uri,
-                    cols, null , null, MediaStore.Audio.Artists.ARTIST_KEY);
+                    null, null , null, null);
         } else {
             ret = MusicUtils.query(this, uri,
-                    cols, null , null, MediaStore.Audio.Artists.ARTIST_KEY);
+                    null, null , null, null);
         }
         return ret;
     }
     
-    static class ArtistAlbumListAdapter extends SimpleCursorTreeAdapter implements SectionIndexer {
+    static class FolderListAdapter extends SimpleCursorTreeAdapter implements SectionIndexer {
         
         private final Drawable mNowPlayingOverlay;
         private final BitmapDrawable mDefaultAlbumIcon;
-        private int mGroupArtistIdIdx;
-        private int mGroupArtistIdx;
-        private int mGroupAlbumIdx;
-        private int mGroupSongIdx;
+        private int mPathIdx;
+        private int mFolderNameIdx;
+        private int mFileTypeIdx;
+        private int mFolderIdIdx;
         private final Context mContext;
         private final Resources mResources;
         private final String mAlbumSongSeparator;
@@ -586,7 +582,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
             }
         }
 
-        ArtistAlbumListAdapter(Context context, FoldersBrowserActivity currentactivity,
+        FolderListAdapter(Context context, FoldersBrowserActivity currentactivity,
                 Cursor cursor, int glayout, String[] gfrom, int[] gto, 
                 int clayout, String[] cfrom, int[] cto) {
             super(context, cursor, glayout, gfrom, gto, clayout, cfrom, cto);
@@ -610,14 +606,14 @@ public class FoldersBrowserActivity extends ExpandableListActivity
         
         private void getColumnIndices(Cursor cursor) {
             if (cursor != null) {
-                mGroupArtistIdIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID);
-                mGroupArtistIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST);
-                mGroupAlbumIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_ALBUMS);
-                mGroupSongIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.NUMBER_OF_TRACKS);
+                mPathIdx = cursor.getColumnIndexOrThrow(Files.PATH);
+                mFolderNameIdx = cursor.getColumnIndexOrThrow(Files.FOLDER);
+                mFileTypeIdx = cursor.getColumnIndexOrThrow(Files.FILE_TYPE);
+                mFolderIdIdx = cursor.getColumnIndexOrThrow(Files.FOLDER_ID);
                 if (mIndexer != null) {
                     mIndexer.setCursor(cursor);
                 } else {
-                    mIndexer = new MusicAlphabetIndexer(cursor, mGroupArtistIdx, 
+                    mIndexer = new MusicAlphabetIndexer(cursor, mFolderNameIdx, 
                             mResources.getString(R.string.fast_scroll_alphabet));
                 }
             }
@@ -668,29 +664,29 @@ public class FoldersBrowserActivity extends ExpandableListActivity
 
             ViewHolder vh = (ViewHolder) view.getTag();
 
-            String artist = cursor.getString(mGroupArtistIdx);
-            String displayartist = artist;
-            boolean unknown = artist == null || artist.equals(MediaStore.UNKNOWN_STRING);
+            String folderName = cursor.getString(mFolderNameIdx);
+            String displayFolderName = folderName;
+            boolean unknown = folderName == null || folderName.equals(MediaStore.UNKNOWN_STRING);
             if (unknown) {
-                displayartist = mUnknownArtist;
+                displayFolderName = mUnknownArtist;
             }
-            vh.line1.setText(displayartist);
+            vh.line1.setText(displayFolderName);
 
-            int numalbums = cursor.getInt(mGroupAlbumIdx);
-            int numsongs = cursor.getInt(mGroupSongIdx);
+//            int numalbums = cursor.getInt(mFileTypeIdx);
+//            int numsongs = cursor.getInt(mFolderIdIdx);
+//            
+//            String songs_albums = MusicUtils.makeAlbumsLabel(context,
+//                    numalbums, numsongs, unknown);
+//            
+//            vh.line2.setText(songs_albums);
             
-            String songs_albums = MusicUtils.makeAlbumsLabel(context,
-                    numalbums, numsongs, unknown);
-            
-            vh.line2.setText(songs_albums);
-            
-            long currentartistid = MusicUtils.getCurrentArtistId();
-            long artistid = cursor.getLong(mGroupArtistIdIdx);
-            if (currentartistid == artistid && !isexpanded) {
-                vh.play_indicator.setImageDrawable(mNowPlayingOverlay);
-            } else {
-                vh.play_indicator.setImageDrawable(null);
-            }
+//            long currentartistid = MusicUtils.getCurrentArtistId();
+//            long artistid = cursor.getLong(mPathIdx);
+//            if (currentartistid == artistid && !isexpanded) {
+//                vh.play_indicator.setImageDrawable(mNowPlayingOverlay);
+//            } else {
+//                vh.play_indicator.setImageDrawable(null);
+//            }
         }
 
         @Override
@@ -698,7 +694,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
 
             ViewHolder vh = (ViewHolder) view.getTag();
 
-            String name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.ALBUM));
+            String name = cursor.getString(cursor.getColumnIndexOrThrow(Files.PATH));
             String displayname = name;
             boolean unknown = name == null || name.equals(MediaStore.UNKNOWN_STRING); 
             if (unknown) {
@@ -706,115 +702,68 @@ public class FoldersBrowserActivity extends ExpandableListActivity
             }
             vh.line1.setText(displayname);
 
-            int numsongs = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS));
-            int numartistsongs = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS_FOR_ARTIST));
-
-            final StringBuilder builder = mBuffer;
-            builder.delete(0, builder.length());
-            if (unknown) {
-                numsongs = numartistsongs;
-            }
-              
-            if (numsongs == 1) {
-                builder.append(context.getString(R.string.onesong));
-            } else {
-                if (numsongs == numartistsongs) {
-                    final Object[] args = mFormatArgs;
-                    args[0] = numsongs;
-                    builder.append(mResources.getQuantityString(R.plurals.Nsongs, numsongs, args));
-                } else {
-                    final Object[] args = mFormatArgs3;
-                    args[0] = numsongs;
-                    args[1] = numartistsongs;
-                    args[2] = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST));
-                    builder.append(mResources.getQuantityString(R.plurals.Nsongscomp, numsongs, args));
-                }
-            }
-            vh.line2.setText(builder.toString());
-            
-            ImageView iv = vh.icon;
-            // We don't actually need the path to the thumbnail file,
-            // we just use it to see if there is album art or not
-            String art = cursor.getString(cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Albums.ALBUM_ART));
-            if (unknown || art == null || art.length() == 0) {
-                iv.setBackgroundDrawable(mDefaultAlbumIcon);
-                iv.setImageDrawable(null);
-            } else {
-                long artIndex = cursor.getLong(0);
-                Drawable d = MusicUtils.getCachedArtwork(context, artIndex, mDefaultAlbumIcon);
-                iv.setImageDrawable(d);
-            }
-
-            long currentalbumid = MusicUtils.getCurrentAlbumId();
-            long aid = cursor.getLong(0);
-            iv = vh.play_indicator;
-            if (currentalbumid == aid) {
-                iv.setImageDrawable(mNowPlayingOverlay);
-            } else {
-                iv.setImageDrawable(null);
-            }
+//            int numsongs = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS));
+//            int numartistsongs = cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.Audio.Albums.NUMBER_OF_SONGS_FOR_ARTIST));
+//
+//            final StringBuilder builder = mBuffer;
+//            builder.delete(0, builder.length());
+//            if (unknown) {
+//                numsongs = numartistsongs;
+//            }
+//              
+//            if (numsongs == 1) {
+//                builder.append(context.getString(R.string.onesong));
+//            } else {
+//                if (numsongs == numartistsongs) {
+//                    final Object[] args = mFormatArgs;
+//                    args[0] = numsongs;
+//                    builder.append(mResources.getQuantityString(R.plurals.Nsongs, numsongs, args));
+//                } else {
+//                    final Object[] args = mFormatArgs3;
+//                    args[0] = numsongs;
+//                    args[1] = numartistsongs;
+//                    args[2] = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST));
+//                    builder.append(mResources.getQuantityString(R.plurals.Nsongscomp, numsongs, args));
+//                }
+//            }
+//            vh.line2.setText(builder.toString());
+//            
+//            ImageView iv = vh.icon;
+//            // We don't actually need the path to the thumbnail file,
+//            // we just use it to see if there is album art or not
+//            String art = cursor.getString(cursor.getColumnIndexOrThrow(
+//                    MediaStore.Audio.Albums.ALBUM_ART));
+//            if (unknown || art == null || art.length() == 0) {
+//                iv.setBackgroundDrawable(mDefaultAlbumIcon);
+//                iv.setImageDrawable(null);
+//            } else {
+//                long artIndex = cursor.getLong(0);
+//                Drawable d = MusicUtils.getCachedArtwork(context, artIndex, mDefaultAlbumIcon);
+//                iv.setImageDrawable(d);
+//            }
+//
+//            long currentalbumid = MusicUtils.getCurrentAlbumId();
+//            long aid = cursor.getLong(0);
+//            iv = vh.play_indicator;
+//            if (currentalbumid == aid) {
+//                iv.setImageDrawable(mNowPlayingOverlay);
+//            } else {
+//                iv.setImageDrawable(null);
+//            }
         }
 
         
         @Override
         protected Cursor getChildrenCursor(Cursor groupCursor) {
             
-            long id = groupCursor.getLong(groupCursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID));
+            long id = groupCursor.getLong(groupCursor.getColumnIndexOrThrow(Files.FOLDER_ID));
             
-            String[] cols = new String[] {
-                    MediaStore.Audio.Albums._ID,
-                    MediaStore.Audio.Albums.ALBUM,
-                    MediaStore.Audio.Albums.NUMBER_OF_SONGS,
-                    MediaStore.Audio.Albums.NUMBER_OF_SONGS_FOR_ARTIST,
-                    MediaStore.Audio.Albums.ALBUM_ART
-            };
+            
             Cursor c = MusicUtils.query(mActivity,
-                    MediaStore.Audio.Artists.Albums.getContentUri("external", id),
-                    cols, null, null, MediaStore.Audio.Albums.DEFAULT_SORT_ORDER);
+            		Files.CONTENT_URI,
+                    null, "folder_id = ? and file_type = ?", new String[]{id+"",Files.FILE_TYPE_AUDIO+""}, null);
             
-            class MyCursorWrapper extends CursorWrapper {
-                String mArtistName;
-                int mMagicColumnIdx;
-                MyCursorWrapper(Cursor c, String artist) {
-                    super(c);
-                    mArtistName = artist;
-                    if (mArtistName == null || mArtistName.equals(MediaStore.UNKNOWN_STRING)) {
-                        mArtistName = mUnknownArtist;
-                    }
-                    mMagicColumnIdx = c.getColumnCount();
-                }
-                
-                @Override
-                public String getString(int columnIndex) {
-                    if (columnIndex != mMagicColumnIdx) {
-                        return super.getString(columnIndex);
-                    }
-                    return mArtistName;
-                }
-                
-                @Override
-                public int getColumnIndexOrThrow(String name) {
-                    if (MediaStore.Audio.Albums.ARTIST.equals(name)) {
-                        return mMagicColumnIdx;
-                    }
-                    return super.getColumnIndexOrThrow(name); 
-                }
-                
-                @Override
-                public String getColumnName(int idx) {
-                    if (idx != mMagicColumnIdx) {
-                        return super.getColumnName(idx);
-                    }
-                    return MediaStore.Audio.Albums.ARTIST;
-                }
-                
-                @Override
-                public int getColumnCount() {
-                    return super.getColumnCount() + 1;
-                }
-            }
-            return new MyCursorWrapper(c, groupCursor.getString(mGroupArtistIdx));
+            return c;
         }
 
         @Override
@@ -838,7 +787,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
                     (s != null && s.equals(mConstraint)))) {
                 return getCursor();
             }
-            Cursor c = mActivity.getArtistCursor(null, s);
+            Cursor c = mActivity.getFolderCursor(null, s);
             mConstraint = s;
             mConstraintIsValid = true;
             return c;
