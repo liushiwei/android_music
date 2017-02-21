@@ -16,7 +16,6 @@
 
 package com.android.music;
 
-import com.android.music.FoldersBrowserActivity.FolderListAdapter.ViewHolder;
 import com.android.music.MusicUtils.ServiceToken;
 import com.android.music.QueryBrowserActivity.QueryListAdapter.QueryHandler;
 
@@ -265,7 +264,7 @@ public class FoldersBrowserActivity extends ExpandableListActivity
     @Override
     public boolean onChildClick(ExpandableListView parent, View v, int groupPosition, int childPosition, long id) {
 
-    	ViewHolder vh = (ViewHolder) v.getTag();
+    	FolderListAdapter.ViewHolder vh = (FolderListAdapter.ViewHolder) v.getTag();
         MusicUtils.playFolder(this, vh.folder_id, childPosition);
         return true;
     }

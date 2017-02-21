@@ -1030,7 +1030,7 @@ public class MediaPlaybackService extends Service {
     
     public void openFolder(String[] list ,int position){
     	synchronized (this) {
-			
+    		isFolderMode = true;
             if (mShuffleMode == SHUFFLE_AUTO) {
                 mShuffleMode = SHUFFLE_NORMAL;
             }
@@ -1051,7 +1051,7 @@ public class MediaPlaybackService extends Service {
             if (newlist) {
             	addToFolderPlayList(list, -1);
             	//TODO add folder mode
-                notifyChange(QUEUE_CHANGED);
+                //notifyChange(QUEUE_CHANGED);
             }
             int oldpos = mPlayPos;
             if (position >= 0) {
@@ -1066,7 +1066,6 @@ public class MediaPlaybackService extends Service {
             if (oldId != getAudioId()) {
                 notifyChange(META_CHANGED);
             }
-            isFolderMode = true;
 		
 	}
     }
